@@ -7,38 +7,56 @@ struct ContentView: View {
     private let columns = Array(repeating: GridItem(.flexible(minimum: 88, maximum: 96), spacing: 12), count: 5)
 
     var body: some View {
-        VStack(spacing: 28) {
-            HStack(spacing: 8) {
-                Text("Hovr")
-                    .font(.system(size: 24, weight: .semibold))
+        ZStack {
+            GlassBackground()
 
-                ResetButton(isActive: cursorManager.selectedOption != nil) {
-                    cursorManager.restoreSystemCursor()
-                }
-            }
+            VStack(spacing: 28) {
+                HStack(spacing: 8) {
+                    Text("Hovr")
+                        .font(.system(size: 24, weight: .semibold))
 
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(CursorOption.allCases) { option in
-                    CursorCard(option: option, isSelected: cursorManager.selectedOption == option) {
-                        cursorManager.apply(option)
+                    ResetButton(isActive: cursorManager.selectedOption != nil) {
+                        cursorManager.restoreSystemCursor()
                     }
                 }
-            }
 
-            VStack(spacing: 8) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 44, height: 44)
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(CursorOption.allCases) { option in
+                        CursorCard(option: option, isSelected: cursorManager.selectedOption == option) {
+                            cursorManager.apply(option)
+                        }
+                    }
+                }
 
-                Text("hovr v1.0.0")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 8) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 44, height: 44)
+
+                    Text("hovr v1.0.0")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 24)
         .frame(width: 560, height: 300)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct GlassBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.blendingMode = .behindWindow
+        view.material = .hudWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
     }
 }
 
@@ -54,14 +72,10 @@ private struct CursorCard: View {
                 lineWidth: isSelected ? 2 : 1,
                 strokeColor: isSelected ? Color.accentColor : Color.black.opacity(0.08)
             ) {
-                VStack(spacing: 10) {
+                VStack {
                     CursorPreview(option: option, size: 18)
-
-                    Text(option.name)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.primary)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .frame(height: 92)
             }
         })
@@ -79,12 +93,17 @@ private struct SurfaceCard<Content: View>: View {
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .fill(Color.black.opacity(0.2))
+                    .background(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(.ultraThinMaterial.opacity(0.35))
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(strokeColor, lineWidth: lineWidth)
             )
+            .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
     }
 }
 
@@ -99,7 +118,7 @@ private struct ResetButton: View {
             SurfaceCard(
                 cornerRadius: 10,
                 lineWidth: 1,
-                strokeColor: isHovered && isActive ? Color.black.opacity(0.14) : Color.black.opacity(0.08)
+                strokeColor: isHovered && isActive ? Color.white.opacity(0.16) : Color.white.opacity(0.08)
             ) {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.system(size: 16, weight: .medium))
