@@ -10,21 +10,15 @@ enum CursorOption: String, CaseIterable, Identifiable {
     case moon = "Moon"
 
     var id: String { rawValue }
-
     var name: String { rawValue }
 
     var emoji: String {
         switch self {
-        case .spark:
-            return "✨"
-        case .sun:
-            return "☀️"
-        case .leaf:
-            return "🍃"
-        case .flame:
-            return "🔥"
-        case .moon:
-            return "🌙"
+        case .spark: return "✨"
+        case .sun: return "☀️"
+        case .leaf: return "🍃"
+        case .flame: return "🔥"
+        case .moon: return "🌙"
         }
     }
 }
@@ -41,51 +35,47 @@ final class CursorManager: ObservableObject {
     }
 
     func restoreSystemCursor() {
+        selectedOption = nil
         overlayController.restoreSystemCursor()
     }
 }
 
 @MainActor
 private final class CursorOverlayController {
-    private var windows: [CursorOverlayWindow] = []
+    private let window = CursorOverlayWindow()
     private var timer: Timer?
-    private var isCursorHidden = false
-    private var currentOption: CursorOption?
+    private var hideCount = 0
 
     func showCursor(_ option: CursorOption) {
-        currentOption = option
-
-        if windows.isEmpty {
-            windows = NSScreen.screens.map(CursorOverlayWindow.init(screen:))
-        }
-
-        windows.forEach { $0.update(option: option) }
-
-        if !isCursorHidden {
-            CGDisplayHideCursor(kCGNullDirectDisplay)
-            isCursorHidden = true
-        }
-
-        windows.forEach { $0.orderFrontRegardless() }
+        window.update(option: option)
+        window.orderFrontRegardless()
         updateCursorPosition()
+
+        if hideCount == 0 {
+            NSCursor.hide()
+            CGDisplayHideCursor(CGMainDisplayID())
+        }
+        hideCount = 1
+
         startTimer()
     }
 
     func restoreSystemCursor() {
         timer?.invalidate()
         timer = nil
-        windows.forEach { $0.orderOut(nil) }
+        window.orderOut(nil)
 
-        if isCursorHidden {
-            CGDisplayShowCursor(kCGNullDirectDisplay)
-            isCursorHidden = false
-        }
+        guard hideCount > 0 else { return }
+
+        NSCursor.unhide()
+        CGDisplayShowCursor(CGMainDisplayID())
+        hideCount = 0
     }
 
     private func startTimer() {
         guard timer == nil else { return }
 
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.updateCursorPosition()
             }
@@ -94,37 +84,22 @@ private final class CursorOverlayController {
     }
 
     private func updateCursorPosition() {
-        guard currentOption != nil else { return }
-
-        let location = NSEvent.mouseLocation
-
-        for window in windows {
-            if window.screenFrame.contains(location) {
-                window.updatePosition(location)
-                window.orderFrontRegardless()
-            } else {
-                window.hideCursor()
-            }
-        }
+        window.updatePosition(to: NSEvent.mouseLocation)
     }
 }
 
 private final class CursorOverlayWindow: NSWindow {
-    let screenFrame: CGRect
-
     private let label = NSTextField(labelWithString: "")
-    private let cursorSize: CGFloat = 18
-    private let hotSpot = CGPoint(x: 3, y: 15)
+    private let cursorSize: CGFloat = 20
+    private let frameSize = CGSize(width: 28, height: 28)
+    private let hotSpot = CGPoint(x: 5, y: 21)
 
-    init(screen: NSScreen) {
-        screenFrame = screen.frame
-
+    init() {
         super.init(
-            contentRect: screen.frame,
+            contentRect: CGRect(origin: .zero, size: frameSize),
             styleMask: .borderless,
             backing: .buffered,
-            defer: false,
-            screen: screen
+            defer: false
         )
 
         backgroundColor = .clear
@@ -134,34 +109,31 @@ private final class CursorOverlayWindow: NSWindow {
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 
+        let contentView = NSView(frame: CGRect(origin: .zero, size: frameSize))
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.clear.cgColor
+
+        label.frame = contentView.bounds
         label.alignment = .center
         label.backgroundColor = .clear
-        label.textColor = .labelColor
         label.font = .systemFont(ofSize: cursorSize)
-        label.frame = CGRect(origin: .zero, size: CGSize(width: cursorSize, height: cursorSize))
-        label.isHidden = true
 
-        contentView = NSView(frame: CGRect(origin: .zero, size: screen.frame.size))
-        contentView?.wantsLayer = true
-        contentView?.layer?.backgroundColor = NSColor.clear.cgColor
-        contentView?.addSubview(label)
+        contentView.addSubview(label)
+        self.contentView = contentView
+    }
+
+    required init?(coder: NSCoder) {
+        nil
     }
 
     override var canBecomeKey: Bool { false }
 
     func update(option: CursorOption) {
         label.stringValue = option.emoji
-        label.isHidden = false
     }
 
-    func updatePosition(_ globalLocation: CGPoint) {
-        let localX = globalLocation.x - screenFrame.minX - hotSpot.x
-        let localY = globalLocation.y - screenFrame.minY - (cursorSize - hotSpot.y)
-        label.frame.origin = CGPoint(x: localX, y: localY)
-        label.isHidden = false
-    }
-
-    func hideCursor() {
-        label.isHidden = true
+    func updatePosition(to mouseLocation: CGPoint) {
+        let origin = CGPoint(x: mouseLocation.x - hotSpot.x, y: mouseLocation.y - hotSpot.y)
+        setFrameOrigin(origin)
     }
 }

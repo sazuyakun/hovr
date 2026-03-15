@@ -76,7 +76,9 @@ struct CursorPreview: View {
     }
 }
 
-#Preview {
-    ContentView()
-        .environmentObject(CursorManager())
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .environmentObject(CursorManager())
+    }
 }
